@@ -5,6 +5,7 @@ import random
 import networkx as nx
 import matplotlib.pyplot as plt
 import time
+from matplotlib import animation
 
 class StateIOEnv(gym.Env):
     """
@@ -18,7 +19,7 @@ class StateIOEnv(gym.Env):
         
         self.enemy_enabled = False
         self.num_nodes = 5         # Number of bases on the map
-        self.max_units = 100         # Max number of units a base can hold
+        self.max_units = 10       # Max number of units a base can hold
         self.speed = 20
         self.renderflag = renderflag
 
@@ -37,6 +38,8 @@ class StateIOEnv(gym.Env):
                 self.distance_matrix[i,j]=dist
                 self.distance_matrix[j,i]=dist
                 G.add_edge(i, j, weight=dist)
+        if self.renderflag:
+            self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
 
     def encode_transfers(self, max_transfers=20):
@@ -184,22 +187,37 @@ class StateIOEnv(gym.Env):
         """
         if rendermode == 'matplotlib':
             G = self.G.copy()
-            # Visualize the graph
             pos = nx.get_node_attributes(G, 'pos')
             edge_labels = nx.get_edge_attributes(G, 'weight')
-            self.pos = pos
-            # Create a random graph to represent the map
-            plt.figure(figsize=(8, 6))
-            nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500)
-            nx.draw_networkx_edge_labels(G, pos, edge_labels={k: f"{v:.1f}" for k, v in edge_labels.items()}, font_size=8)
-            plt.title("Graph with Euclidean Edge Weights")
+
+            self.ax.clear()
+            nx.draw(G, pos, ax=self.ax, with_labels=True, node_color='lightblue', node_size=500)
+            nx.draw_networkx_edge_labels(G, pos, edge_labels={k: f"{v:.1f}" for k, v in edge_labels.items()}, font_size=8, ax=self.ax)
+            self.ax.set_title("Graph with Euclidean Edge Weights")
             for node in G.nodes:
                 x, y = pos[node]
-                plt.text(x, y + 3, f"{self.my_troop_distribution[node]}", color='red', fontsize=10, ha='center')
-                plt.text(x, y - 3, f"{self.neutral_troop_distribution[node]}", color='green', fontsize=10, ha='center')
-            plt.show(block=False)
-            plt.pause(3)    # Pause to view the graph
-            # plt.close()
+                self.ax.text(x, y + 3, f"{self.my_troop_distribution[node]}", color='red', fontsize=10, ha='center')
+                self.ax.text(x, y - 3, f"{self.neutral_troop_distribution[node]}", color='green', fontsize=10, ha='center')
+            
+            for (src, dst), troop_list in self.my_troop_transferring.items():
+                for troop in troop_list:
+                    time_remaining = troop["time_remaining"]
+                    distance = self.distance_matrix[src, dst]
+                    if distance == 0:
+                        continue  # avoid div0
+
+                    time_total = distance / self.speed
+                    frac = 1 - time_remaining / time_total
+                    frac = np.clip(frac, 0.0, 1.0)  # 防止越界
+
+                    x0, y0 = pos[src]
+                    x1, y1 = pos[dst]
+                    x = x0 + frac * (x1 - x0)
+                    y = y0 + frac * (y1 - y0)
+
+                    self.ax.plot(x, y, 'ro', markersize=5)
+                    self.ax.text(x, y + 1.5, f"{troop['units']}", color='black', fontsize=8, ha='center')
+            plt.pause(0.1)
         elif rendermode == 'pygame':
             pass
 
