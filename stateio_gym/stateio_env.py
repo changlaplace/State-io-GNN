@@ -1,6 +1,9 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import random
+import networkx as nx
+import matplotlib.pyplot as plt
 
 class StateIOEnv(gym.Env):
     """
@@ -11,28 +14,88 @@ class StateIOEnv(gym.Env):
 
     def __init__(self):
         super().__init__()
-
+        self.enemy_enabled = False
         self.num_nodes = 10          # Number of bases on the map
         self.max_units = 100         # Max number of units a base can hold
 
-        # Action space: [source_base_index, target_base_index]
-        self.action_space = spaces.MultiDiscrete([self.num_nodes, self.num_nodes])
+    def encode_transfers(self, max_transfers=20):
+        """
+        Encode my_troop_transferring into a fixed-size numpy array.
+        Each transfer is [src, dst, units, time_remaining]
+        Output shape: (max_transfers * 4,)
+        """
+        transfers = []
 
-        # Observation space: for each node, two values [ownership, unit_count]
-        # ownership: 0 = neutral, 1 = player, 2 = enemy
-        self.observation_space = spaces.Box(
-            low=np.array([[0, 0]] * self.num_nodes).flatten(),
-            high=np.array([[2, self.max_units]] * self.num_nodes).flatten(),
-            dtype=np.int32
-        )
+        for (src, dst), troop_list in self.my_troop_transferring.items():
+            for troop in troop_list:
+                transfers.append([src, dst, troop["units"], troop["time_remaining"]])
 
-        self.state = None
+        # Pad with zeros if not enough transfers
+        while len(transfers) < max_transfers:
+            transfers.append([0, 0, 0, 0])
 
-    def reset(self, seed=None, options=None):
+        # Clip if too many transfers (or raise warning)
+        transfers = transfers[:max_transfers]
+
+        return np.array(transfers, dtype=np.int32).flatten()
+    def _construct_observation(self):
+        """
+        Combine troop distributions and encoded transfers into a flat observation vector.
+        Final shape: (2 * num_nodes + 80,)
+        """
+        base_obs = np.concatenate([
+            self.my_troop_distribution,          # shape = (num_nodes,)
+            self.neutral_troop_distribution      # shape = (num_nodes,)
+        ])
+        transfer_obs = self.encode_transfers(max_transfers=20).flatten()  # shape = (max_transfers*4, )
+
+        full_obs = np.concatenate([base_obs, transfer_obs])     # shape = (2*num_nodes + 80,)
+        return full_obs.astype(np.int32)
+    
+    def reset(self, seed=42):
         """
         Resets the environment to its initial state.
         """
         super().reset(seed=seed)
+
+        # Create a random graph to represent the map
+        positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
+        G = nx.Graph()
+        for i in range(self.num_nodes):
+            G.add_node(i, pos=positions[i])
+
+        # Add edges with Euclidean distances as weights
+        for i in range(self.num_nodes):
+            for j in range(i + 1, self.num_nodes):
+                dist = np.linalg.norm(positions[i] - positions[j])  # 欧氏距离
+                G.add_edge(i, j, weight=dist)
+
+        # Visualize the graph
+        pos = nx.get_node_attributes(G, 'pos')
+        edge_labels = nx.get_edge_attributes(G, 'weight')
+
+        plt.figure(figsize=(8, 6))
+        nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500)
+        nx.draw_networkx_edge_labels(G, pos, edge_labels={k: f"{v:.1f}" for k, v in edge_labels.items()}, font_size=8)
+        plt.title("Graph with Euclidean Edge Weights")
+        plt.show()
+
+        self.neutral_troop_distribution = np.ones(self.num_nodes, dtype=np.int32) * 20  # Neutral bases start with 20 units each
+        self.my_troop_distribution = np.zeros(self.num_nodes, dtype=np.int32)  # Player starts with no units
+        self.my_starting_base = 0  # Player's starting base index
+
+        self.my_troop_distribution[self.my_starting_base] = 50  # Player starts with 50 units at their base
+        # Action space: [source_base_index, target_base_index]
+        self.neutral_troop_distribution[self.my_starting_base] = 0  # Player's base is no longer neutral
+        
+        self.my_troop_transferring = {} 
+        # Things like {
+        #     (0, 4): [ {"units": 10, "time_remaining": 3} ],
+        #     (1, 7): [ {"units": 5, "time_remaining": 1}, {"units": 6, "time_remaining": 2} ]
+        # }
+        
+        self.action_space = spaces.MultiDiscrete([self.num_nodes, self.num_nodes])
+
 
         # Initialize all nodes to neutral with random unit counts
         self.state = np.zeros((self.num_nodes, 2), dtype=np.int32)
@@ -105,3 +168,19 @@ class StateIOEnv(gym.Env):
         Optional resource cleanup.
         """
         pass
+
+if __name__ == "__main__":
+    # Example usage
+    env = StateIOEnv()
+    obs, _ = env.reset()
+    env.render()
+
+    for _ in range(10):
+        action = env.action_space.sample()
+        obs, reward, done, truncated, info = env.step(action)
+        print(f"Action: {action}, Reward: {reward}, Done: {done}")
+        env.render()
+        if done:
+            break
+
+    env.close()
