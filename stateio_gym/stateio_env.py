@@ -17,6 +17,7 @@ class StateIOEnv(gym.Env):
         self.enemy_enabled = False
         self.num_nodes = 10          # Number of bases on the map
         self.max_units = 100         # Max number of units a base can hold
+        self.speed = 5.0
 
     def encode_transfers(self, max_transfers=20):
         """
@@ -57,7 +58,6 @@ class StateIOEnv(gym.Env):
         Resets the environment to its initial state.
         """
         super().reset(seed=seed)
-
         # Create a random graph to represent the map
         positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
         G = nx.Graph()
@@ -93,19 +93,14 @@ class StateIOEnv(gym.Env):
         #     (0, 4): [ {"units": 10, "time_remaining": 3} ],
         #     (1, 7): [ {"units": 5, "time_remaining": 1}, {"units": 6, "time_remaining": 2} ]
         # }
-        
-        self.action_space = spaces.MultiDiscrete([self.num_nodes, self.num_nodes])
+        state = self._construct_observation()
+        info = {
+            'neutral_troop_distribution': self.neutral_troop_distribution,
+            'my_troop_distribution': self.my_troop_distribution,
+            'my_troop_transferring': self.my_troop_transferring
+        }
 
-
-        # Initialize all nodes to neutral with random unit counts
-        self.state = np.zeros((self.num_nodes, 2), dtype=np.int32)
-        self.state[:, 1] = np.random.randint(10, 30, size=self.num_nodes)
-
-        # Set ownership of first node to player, last node to enemy
-        self.state[0, 0] = 1
-        self.state[-1, 0] = 2
-
-        return self.state.flatten(), {}
+        return state.flatten(), info
 
     def step(self, action):
         """
@@ -173,14 +168,15 @@ if __name__ == "__main__":
     # Example usage
     env = StateIOEnv()
     obs, _ = env.reset()
-    env.render()
+    # env.render()
 
-    for _ in range(10):
-        action = env.action_space.sample()
-        obs, reward, done, truncated, info = env.step(action)
-        print(f"Action: {action}, Reward: {reward}, Done: {done}")
-        env.render()
-        if done:
-            break
-
+    # for _ in range(10):
+    #     action = env.action_space.sample()
+    #     obs, reward, done, truncated, info = env.step(action)
+    #     print(f"Action: {action}, Reward: {reward}, Done: {done}")
+    #     env.render()
+    #     if done:
+    #         break
+    print("Initial Observation:", obs)
+    print("Initial Info:", _)
     env.close()
