@@ -17,9 +17,9 @@ class StateIOEnv(gym.Env):
         super().__init__()
         
         self.enemy_enabled = False
-        self.num_nodes = 10          # Number of bases on the map
+        self.num_nodes = 5         # Number of bases on the map
         self.max_units = 100         # Max number of units a base can hold
-        self.speed = 5.0
+        self.speed = 20
         self.renderflag = renderflag
 
         positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
@@ -198,8 +198,8 @@ class StateIOEnv(gym.Env):
                 plt.text(x, y + 3, f"{self.my_troop_distribution[node]}", color='red', fontsize=10, ha='center')
                 plt.text(x, y - 3, f"{self.neutral_troop_distribution[node]}", color='green', fontsize=10, ha='center')
             plt.show(block=False)
-            plt.pause(10)    # Pause to view the graph
-            plt.close()
+            plt.pause(3)    # Pause to view the graph
+            # plt.close()
         elif rendermode == 'pygame':
             pass
 
@@ -215,14 +215,21 @@ if __name__ == "__main__":
     env = StateIOEnv()
     obs, _ = env.reset()
     # env.render()
+    while True:
+        print("Please input your action (source_index space target_index):")
+        action_input = input()
+        try:
+            src, dst = map(int, action_input.split(' '))
+            obs, reward, done, _, _ = env.step((src, dst))
+            print("Observation:", obs)
+            print("Reward:", reward)
+            if done:
+                print("Game Over!")
+                break
+        except Exception as e:
+            print(f"Invalid input: {e}, using detault action waiting action")
+            src, dst = None, None
 
-    # for _ in range(10):
-    #     action = env.action_space.sample()
-    #     obs, reward, done, truncated, info = env.step(action)
-    #     print(f"Action: {action}, Reward: {reward}, Done: {done}")
-    #     env.render()
-    #     if done:
-    #         break
     print("Initial Observation:", obs)
     print("Initial Info:", _)
     env.close()
