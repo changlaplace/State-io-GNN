@@ -4,6 +4,7 @@ import numpy as np
 import random
 import networkx as nx
 import matplotlib.pyplot as plt
+import time
 
 class StateIOEnv(gym.Env):
     """
@@ -12,12 +13,31 @@ class StateIOEnv(gym.Env):
     The player sends units from one base to another to capture territory.
     """
 
-    def __init__(self):
+    def __init__(self, renderflag = True):
         super().__init__()
+        
         self.enemy_enabled = False
         self.num_nodes = 10          # Number of bases on the map
         self.max_units = 100         # Max number of units a base can hold
         self.speed = 5.0
+        self.renderflag = renderflag
+
+        positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
+        G = nx.Graph()
+        for i in range(self.num_nodes):
+            G.add_node(i, pos=positions[i])
+
+        self.distance_matrix = np.zeros(shape=(self.num_nodes, self.num_nodes))
+        self.G = G
+
+        # Add edges with Euclidean distances as weights
+        for i in range(self.num_nodes):
+            for j in range(i + 1, self.num_nodes):
+                dist = np.linalg.norm(positions[i] - positions[j])  # 
+                self.distance_matrix[i,j]=dist
+                self.distance_matrix[j,i]=dist
+                G.add_edge(i, j, weight=dist)
+
 
     def encode_transfers(self, max_transfers=20):
         """
@@ -58,28 +78,6 @@ class StateIOEnv(gym.Env):
         Resets the environment to its initial state.
         """
         super().reset(seed=seed)
-        # Create a random graph to represent the map
-        positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
-        G = nx.Graph()
-        for i in range(self.num_nodes):
-            G.add_node(i, pos=positions[i])
-
-        # Add edges with Euclidean distances as weights
-        for i in range(self.num_nodes):
-            for j in range(i + 1, self.num_nodes):
-                dist = np.linalg.norm(positions[i] - positions[j])  # 欧氏距离
-                G.add_edge(i, j, weight=dist)
-
-        # Visualize the graph
-        pos = nx.get_node_attributes(G, 'pos')
-        edge_labels = nx.get_edge_attributes(G, 'weight')
-
-        plt.figure(figsize=(8, 6))
-        nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500)
-        nx.draw_networkx_edge_labels(G, pos, edge_labels={k: f"{v:.1f}" for k, v in edge_labels.items()}, font_size=8)
-        plt.title("Graph with Euclidean Edge Weights")
-        plt.show()
-
         self.neutral_troop_distribution = np.ones(self.num_nodes, dtype=np.int32) * 20  # Neutral bases start with 20 units each
         self.my_troop_distribution = np.zeros(self.num_nodes, dtype=np.int32)  # Player starts with no units
         self.my_starting_base = 0  # Player's starting base index
@@ -99,64 +97,112 @@ class StateIOEnv(gym.Env):
             'my_troop_distribution': self.my_troop_distribution,
             'my_troop_transferring': self.my_troop_transferring
         }
+        if self.renderflag:
+            self.render()
 
         return state.flatten(), info
 
     def step(self, action):
         """
-        Executes an action in the environment.
-        Args:
-            action: [source_node, target_node]
-        Returns:
-            observation, reward, terminated, truncated, info
+        Process an action taken by the agent.
+        Action is a tuple: (source_index, target_index, units_to_send)
         """
-        src, dst = action
-        reward = 0
+        src, dst= action
+
         done = False
-        truncated = False
-        info = {}
+        reward = 0
 
-        # Invalid actions (same node or not player's base)
-        if src == dst or self.state[src, 0] != 1:
-            reward = -1
-            return self.state.flatten(), reward, done, truncated, info
+        # Check valid action
+        if (
+            0 <= src < self.num_nodes and
+            0 <= dst < self.num_nodes and
+            src != dst
+        ):
+            print(f"Action taken: Move from {src} to {dst}")
+            # Deduct units from source base
+            units = self.my_troop_distribution[src]
 
-        attack_force = self.state[src, 1] // 2
-        if attack_force <= 0:
-            reward = -0.5
-            return self.state.flatten(), reward, done, truncated, info
+            self.my_troop_distribution[src] = 0
+            
+            time_to_arrive = self.distance_matrix[src, dst] / self.speed  # Compute time based on distance / speed
+            
+            
+            # Add to transfers
+            if (src, dst) not in self.my_troop_transferring:
+                self.my_troop_transferring[(src, dst)] = []
+            self.my_troop_transferring[(src, dst)].append({
+                "units": units,
+                "time_remaining": time_to_arrive
+                })
+            
+        # Update transferring troops
+        completed_transfers = []
+        for (src, dst), troop_list in list(self.my_troop_transferring.items()):
+            for troop in troop_list:
+                troop["time_remaining"] -= 1
+            # Extract completed ones
+            arrivals = [t for t in troop_list if t["time_remaining"] <= 0]
+            still_moving = [t for t in troop_list if t["time_remaining"] > 0]
+            if arrivals:
+                # Apply effect of arrival
+                total_arrival_units = sum(t["units"] for t in arrivals)
+                if self.neutral_troop_distribution[dst] > 0:
+                    if total_arrival_units >= self.neutral_troop_distribution[dst]:
+                        reward += 1  # captured a neutral base
+                        self.my_troop_distribution[dst] = total_arrival_units - self.neutral_troop_distribution[dst]
+                        self.neutral_troop_distribution[dst] = 0
+                        reward += 5  # bonus for capturing a base
+                    else:
+                        self.neutral_troop_distribution[dst] -= total_arrival_units
+                else:
+                    self.my_troop_distribution[dst] += total_arrival_units
+            if still_moving:
+                self.my_troop_transferring[(src, dst)] = still_moving
+            else:
+                del self.my_troop_transferring[(src, dst)]
 
-        self.state[src, 1] -= attack_force
-
-        dst_owner = self.state[dst, 0]
-        dst_units = self.state[dst, 1]
-
-        if attack_force > dst_units:
-            # Successful capture
-            self.state[dst, 0] = 1
-            self.state[dst, 1] = attack_force - dst_units
-            reward = 1.0
-        else:
-            # Failed or partial attack
-            self.state[dst, 1] -= attack_force
-            reward = -0.1
-
-        # Win condition: all enemy nodes eliminated
-        if np.all(self.state[:, 0] != 2):
+        # Check termination (for now: all neutral captured)
+        if np.all(self.neutral_troop_distribution == 0):
             done = True
-            reward += 10
+            reward += 100  # bonus for finishing game
 
-        return self.state.flatten(), reward, done, truncated, info
+        mask = self.neutral_troop_distribution == 0
+        self.my_troop_distribution[mask] += 1
+        next_obs = self._construct_observation()
+        info = {
+            'neutral_troop_distribution': self.neutral_troop_distribution.copy(),
+            'my_troop_distribution': self.my_troop_distribution.copy(),
+            'my_troop_transferring': self.my_troop_transferring.copy()
+        }
+        if self.renderflag:
+            self.render()
+        return next_obs, reward, done, False, info
 
-    def render(self):
+    def render(self, rendermode = 'matplotlib'):
         """
-        Print the current state of the map.
+        Render the current state of the environment.
         """
-        print("==== MAP STATE ====")
-        for i, (owner, units) in enumerate(self.state):
-            owner_str = ["Neutral", "Player", "Enemy"][owner]
-            print(f"Node {i:02d}: {owner_str} | Units: {units}")
-        print("===================")
+        if rendermode == 'matplotlib':
+            G = self.G.copy()
+            # Visualize the graph
+            pos = nx.get_node_attributes(G, 'pos')
+            edge_labels = nx.get_edge_attributes(G, 'weight')
+            self.pos = pos
+            # Create a random graph to represent the map
+            plt.figure(figsize=(8, 6))
+            nx.draw(G, pos, with_labels=True, node_color='lightblue', node_size=500)
+            nx.draw_networkx_edge_labels(G, pos, edge_labels={k: f"{v:.1f}" for k, v in edge_labels.items()}, font_size=8)
+            plt.title("Graph with Euclidean Edge Weights")
+            for node in G.nodes:
+                x, y = pos[node]
+                plt.text(x, y + 3, f"{self.my_troop_distribution[node]}", color='red', fontsize=10, ha='center')
+                plt.text(x, y - 3, f"{self.neutral_troop_distribution[node]}", color='green', fontsize=10, ha='center')
+            plt.show(block=False)
+            plt.pause(10)    # Pause to view the graph
+            plt.close()
+        elif rendermode == 'pygame':
+            pass
+
 
     def close(self):
         """
