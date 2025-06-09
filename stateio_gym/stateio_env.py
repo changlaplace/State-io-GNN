@@ -21,6 +21,9 @@ class StateIOEnv(gym.Env):
         self.enemy_enabled = False
         self.num_nodes = 5         # Number of bases on the map
         self.speed = 3
+        self.step_count = 0
+        self.max_timestep = 10000
+        
         self.renderflag = renderflag
 
         positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0 to 100 2d coordinates
@@ -43,7 +46,7 @@ class StateIOEnv(gym.Env):
             self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
 
-    def encode_transfers(self, max_transfers=20):
+    def encode_transfers(self, max_transfers=50):
         """
         Encode my_troop_transferring into a fixed-size numpy array.
         Each transfer is [src, dst, units, time_remaining]
@@ -76,12 +79,14 @@ class StateIOEnv(gym.Env):
 
         full_obs = np.concatenate([base_obs, transfer_obs])     # shape = (2*num_nodes + 80,)
         return full_obs.astype(np.int32)
-    
     def reset(self, seed=42):
         """
         Resets the environment to its initial state.
         """
         super().reset(seed=seed)
+        
+        self.step_count = 0
+        
         self.neutral_troop_distribution = np.ones(self.num_nodes, dtype=np.int32) * 20  # Neutral bases start with 20 units each
         self.my_troop_distribution = np.zeros(self.num_nodes, dtype=np.int32)  # Player starts with no units
         self.my_starting_base = 0  # Player's starting base index
@@ -112,8 +117,11 @@ class StateIOEnv(gym.Env):
         Action is a tuple: (source_index, target_index, units_to_send)
         """
         src, dst= action
-
+        self.step_count+=1
         done = False
+        truncated = False
+        truncated = (self.step_count>=self.max_timestep)
+        
         reward = 0
 
         # Check valid action
@@ -150,36 +158,51 @@ class StateIOEnv(gym.Env):
                 # Apply effect of arrival
                 total_arrival_units = sum(t["units"] for t in arrivals)
                 if self.neutral_troop_distribution[dst] > 0:
-                    if total_arrival_units >= self.neutral_troop_distribution[dst]:
-                        reward += 1  # captured a neutral base
-                        self.my_troop_distribution[dst] = total_arrival_units - self.neutral_troop_distribution[dst]
+                    # The case which capturing a base from neutral
+                    neutral_units = self.neutral_troop_distribution[dst]
+                    if total_arrival_units >= neutral_units:
+                        # If arrived troop number > neutral troops we can capture it
+                        self.my_troop_distribution[dst] = total_arrival_units - neutral_units
+                        # Give an reward based on the number of elimination
+                        reward += neutral_units * 0.5
                         self.neutral_troop_distribution[dst] = 0
                         reward += 5  # bonus for capturing a base
                     else:
+                        # Even not occupying a base we will give rewards also
+                        reward += total_arrival_units * 0.2
                         self.neutral_troop_distribution[dst] -= total_arrival_units
                 else:
+                    # This is purely reinforcement between already occupying bases
                     self.my_troop_distribution[dst] += total_arrival_units
+                    
             if still_moving:
                 self.my_troop_transferring[(src, dst)] = still_moving
             else:
                 del self.my_troop_transferring[(src, dst)]
-
+                    
+        # Panalty for taking times
+        reward -= 0.5
+        
         # Check termination (for now: all neutral captured)
         if np.all(self.neutral_troop_distribution == 0):
             done = True
-            reward += 100  # bonus for finishing game
+            reward += 50  # bonus for finishing game
 
+        # All my occupied nodes will produce troops as time increases
         mask = self.neutral_troop_distribution == 0
         self.my_troop_distribution[mask] += 1
+        
+        # Construct the current observation which includes troop distribution and all transferrings
         next_obs = self._construct_observation()
         info = {
             'neutral_troop_distribution': self.neutral_troop_distribution.copy(),
             'my_troop_distribution': self.my_troop_distribution.copy(),
             'my_troop_transferring': self.my_troop_transferring.copy()
         }
+        # If set renderflag to true it will use matplotlib to do static render
         if self.renderflag:
             self.render()
-        return next_obs, reward, done, False, info
+        return next_obs, reward, done, truncated, info
 
     def render(self, rendermode = 'matplotlib'):
         """
@@ -219,11 +242,6 @@ class StateIOEnv(gym.Env):
                     self.ax.text(x, y + 1.5, f"{troop['units']}", color='black', fontsize=8, ha='center')
             plt.pause(0.1)
 
-    def close(self):
-        """
-        Optional resource cleanup.
-        """
-        pass
 
 if __name__ == "__main__":
     # Example usage

@@ -3,6 +3,7 @@ import pygame
 import numpy as np
 
 def pygame_loop(env):
+    # They are scale ratios for the canvas
     X_SCALE_RATIO = 7
     Y_SCALE_RATIO = 5.5
     
@@ -12,19 +13,24 @@ def pygame_loop(env):
     font = pygame.font.SysFont(None, 24)
 
     selected_base = None
-
+    # Draw troop numbers around the nodes
     def draw_text(text, pos, color=(0, 0, 0)):
         surface = font.render(text, True, color)
         screen.blit(surface, pos)
 
     running = True
     while running:
+        
+        draw_text(f"Step: {env.step_count}/{env.max_timestep}", (10, 10), (0, 0, 0))
+
         screen.fill((255, 255, 255))
 
         keys = pygame.key.get_pressed()
+        # If space key is pressed then we skip this frame with void action
         if keys[pygame.K_SPACE]:
-            env.step((-100,-100))
-              
+            next_obs, reward, done, truncated, info = env.step((-100,-100))
+        # Else we make an action with the selected src and des
+        selected_base = None    
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -36,8 +42,12 @@ def pygame_loop(env):
                         if selected_base is None:
                             selected_base = i
                         else:
-                            env.step((selected_base, i))
+                            next_obs, reward, done, truncated, info = env.step((selected_base, i))
                             selected_base = None
+        if done:
+            print(f"You have win this game with total time being {env.step_count}")
+        elif truncated:
+            print(f"The game lasted so long, truncated with total time {env.step_count}")
 
         # Draw edges
         for (i, j) in env.G.edges():
