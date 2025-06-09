@@ -14,8 +14,9 @@ class StateIOEnv(gym.Env):
     The player sends units from one base to another to capture territory.
     """
 
-    def __init__(self, renderflag = True):
+    def __init__(self, renderflag = True, seed=42):
         super().__init__()
+        np.random.seed(42)
         
         self.enemy_enabled = False
         self.num_nodes = 5         # Number of bases on the map
@@ -23,6 +24,7 @@ class StateIOEnv(gym.Env):
         self.renderflag = renderflag
 
         positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0 to 100 2d coordinates
+        self.positions = positions
         G = nx.Graph()
         for i in range(self.num_nodes):
             G.add_node(i, pos=positions[i])
