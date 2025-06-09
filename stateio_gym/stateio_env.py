@@ -20,7 +20,7 @@ class StateIOEnv(gym.Env):
         
         self.enemy_enabled = False
         self.num_nodes = 5         # Number of bases on the map
-        self.speed = 20
+        self.speed = 3
         self.renderflag = renderflag
 
         positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0 to 100 2d coordinates

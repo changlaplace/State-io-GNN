@@ -6,3 +6,5 @@ if __name__ == "__main__":
     env = StateIOEnv(renderflag=False)
     env.reset()
     pygame_loop(env)
+
+
