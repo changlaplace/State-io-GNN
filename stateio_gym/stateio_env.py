@@ -19,11 +19,10 @@ class StateIOEnv(gym.Env):
         
         self.enemy_enabled = False
         self.num_nodes = 5         # Number of bases on the map
-        self.max_units = 10       # Max number of units a base can hold
         self.speed = 20
         self.renderflag = renderflag
 
-        positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0~100范围内的2D坐标
+        positions = {i: np.random.rand(2) * 100 for i in range(self.num_nodes)}  # 0 to 100 2d coordinates
         G = nx.Graph()
         for i in range(self.num_nodes):
             G.add_node(i, pos=positions[i])
@@ -139,7 +138,6 @@ class StateIOEnv(gym.Env):
                 })
             
         # Update transferring troops
-        completed_transfers = []
         for (src, dst), troop_list in list(self.my_troop_transferring.items()):
             for troop in troop_list:
                 troop["time_remaining"] -= 1
@@ -218,9 +216,6 @@ class StateIOEnv(gym.Env):
                     self.ax.plot(x, y, 'ro', markersize=5)
                     self.ax.text(x, y + 1.5, f"{troop['units']}", color='black', fontsize=8, ha='center')
             plt.pause(0.1)
-        elif rendermode == 'pygame':
-            pass
-
 
     def close(self):
         """
@@ -238,15 +233,16 @@ if __name__ == "__main__":
         action_input = input()
         try:
             src, dst = map(int, action_input.split(' '))
-            obs, reward, done, _, _ = env.step((src, dst))
-            print("Observation:", obs)
-            print("Reward:", reward)
-            if done:
-                print("Game Over!")
-                break
+            
         except Exception as e:
             print(f"Invalid input: {e}, using detault action waiting action")
-            src, dst = None, None
+            src, dst = -100, -100
+        obs, reward, done, _, _ = env.step((src, dst))
+        print("Observation:", obs)
+        print("Reward:", reward)
+        if done:
+            print("Game Over!")
+            break    
 
     print("Initial Observation:", obs)
     print("Initial Info:", _)
