@@ -17,11 +17,13 @@ def pygame_loop(env):
     def draw_text(text, pos, color=(0, 0, 0)):
         surface = font.render(text, True, color)
         screen.blit(surface, pos)
-
+    done = False
+    truncated = False
+    reward = None
     running = True
     while running:
         
-        draw_text(f"Step: {env.step_count}/{env.max_timestep}", (10, 10), (0, 0, 0))
+   
 
         screen.fill((255, 255, 255))
 
@@ -30,7 +32,7 @@ def pygame_loop(env):
         if keys[pygame.K_SPACE]:
             next_obs, reward, done, truncated, info = env.step((-100,-100))
         # Else we make an action with the selected src and des
-        selected_base = None    
+  
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -48,7 +50,8 @@ def pygame_loop(env):
             print(f"You have win this game with total time being {env.step_count}")
         elif truncated:
             print(f"The game lasted so long, truncated with total time {env.step_count}")
-
+        
+        draw_text(f"Step: {env.step_count}/{env.max_timestep}, current step reward: {reward}", (40, 40), (0, 0, 0))
         # Draw edges
         for (i, j) in env.G.edges():
             x1, y1 = int(env.positions[i][0]*X_SCALE_RATIO), int(env.positions[i][1]*Y_SCALE_RATIO)
