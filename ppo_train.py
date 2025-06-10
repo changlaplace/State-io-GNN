@@ -145,15 +145,15 @@ def transfer_experiment(train_node_num, test_node_num, use_attention=True, episo
     for i in range(train_env_num):
         current_seed = random.randint(0, 1000000)
         logger.warning(f"Now training with the {i}th env node {train_node_num} with seed {current_seed}")
-        train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=current_seed, logger = logger)
-        train_ppo(train_env, policy, optimizer, episode_num)
+        train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=current_seed)
+        train_ppo(train_env, policy, optimizer, episode_num, logger = logger)
 
 
     for j in range(test_env_num):
         current_seed = random.randint(0, 1000000)
         logger.warning(f"Now evaling with the {j}th env node {test_node_num} with seed {current_seed}")
-        test_env = StateIOEnv(renderflag=False, num_nodes=test_node_num, seed = current_seed, logger = logger) 
-        avg_reward = evaluate_policy(test_env, policy, episode_num=eval_num)
+        test_env = StateIOEnv(renderflag=False, num_nodes=test_node_num, seed = current_seed) 
+        avg_reward = evaluate_policy(test_env, policy, episode_num=eval_num, logger = logger)
     
     # Save
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -188,14 +188,14 @@ if __name__=="__main__":
     os.makedirs("models", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     
-    print("========== Transfer: 30 → 5 ==========")
-    reward_30_to_5 = transfer_experiment(train_node_num=30, test_node_num=5)
+    print("========== Transfer: a → b ==========")
+    transfer_experiment(train_node_num=10, test_node_num=5)
 
-    print("========== Transfer: 5 → 30 ==========")
-    reward_5_to_30 = transfer_experiment(train_node_num=5, test_node_num=30)
+    print("========== Transfer: b → a ==========")
+    transfer_experiment(train_node_num=5, test_node_num=10)
 
-    print("\n📈 Transfer Results:")
-    print(f"Train on 30, Test on 5: {reward_30_to_5:.2f}")
-    print(f"Train on 5, Test on 30: {reward_5_to_30:.2f}")
+    # print("\n📈 Transfer Results:")
+    # print(f"Train on 30, Test on 5: {reward_30_to_5:.2f}")
+    # print(f"Train on 5, Test on 30: {reward_5_to_30:.2f}")
     
     
