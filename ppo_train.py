@@ -82,7 +82,7 @@ def train_ppo(env, policy, optimizer, episode_num, logger=None):
             logger.info(msg)
         else:
             print(msg)
-        return policy
+    return policy
 
 def evaluate_policy(env, policy, episode_num=50, logger=None):
     policy.eval()
