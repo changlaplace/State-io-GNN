@@ -9,12 +9,10 @@ import torch.nn.functional as F
 import time
 
 
-IFSAVE = True
-IFLOAD = False
+IFLOAD = True
 
 model_folder = r'./models'
 model_name = r'policy_gnn_20250610_000721.pt'
-
 
 policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
 if IFLOAD:

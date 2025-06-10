@@ -1,10 +1,7 @@
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
-import random
 import networkx as nx
 import matplotlib.pyplot as plt
-import time
 import torch
 from torch_geometric.data import Data
 
@@ -18,7 +15,7 @@ class StateIOEnv(gym.Env):
 
     def __init__(self, renderflag = True, num_nodes = 5, seed=42):
         super().__init__()
-        np.random.seed(42)
+        np.random.seed(seed)
         
         self.enemy_enabled = False
         self.num_nodes = num_nodes         # Number of bases on the map
