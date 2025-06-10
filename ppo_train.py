@@ -9,10 +9,12 @@ import datetime
 import logging
 
 def setup_logger(log_dir="./logs", log_prefix="log"):
-
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     os.makedirs(log_dir, exist_ok=True)
     pid = os.getpid()
-    log_filename = os.path.join(log_dir, f"{log_prefix}_pid{pid}.log")
+    log_filename = os.path.join(log_dir, f"{log_prefix}_{timestamp}.log")
 
     logger = logging.getLogger(str(pid))
     logger.setLevel(logging.INFO)
@@ -29,7 +31,7 @@ gamma = 0.99
 clip_eps = 0.2
 ppo_epochs = 4
 
-def train_ppo(env, policy, optimizer, episode_num):
+def train_ppo(env, policy, optimizer, episode_num, logger=None):
     for episode in range(episode_num):
         obs, _ = env.reset()
         log_probs, rewards, entropies, edge_ids = [], [], [], []
@@ -75,9 +77,14 @@ def train_ppo(env, policy, optimizer, episode_num):
                 optimizer.step()
                 
         status = "done" if done else "truncated"
-        print(f"[Episode {episode}] Total reward: {sum(rewards):.2f}, Time step: {env.step_count}, Terminated by: {status}")
+        msg = (f"[Episode {episode}] Total reward: {sum(rewards):.2f}, Time step: {env.step_count}, Terminated by: {status}")
+        if logger:
+            logger.info(msg)
+        else:
+            print(msg)
+        return policy
 
-def evaluate_policy(env, policy, episode_num=100):
+def evaluate_policy(env, policy, episode_num=50, logger=None):
     policy.eval()
     total_rewards = []
 
@@ -102,10 +109,53 @@ def evaluate_policy(env, policy, episode_num=100):
 
         total_rewards.append(episode_reward)
         status = "done" if done else "truncated"
-        print(f"[Eval Episode {episode}] Total reward: {episode_reward:.2f}, Steps: {step_count}, Terminated by: {status}")
+        
+        msg = f"[Eval Episode {episode}] Total reward: {episode_reward:.2f}, Steps: {step_count}, Terminated by: {status}"
+        if logger:
+            logger.info(msg)
+        else:
+            print(msg)
 
     avg_reward = sum(total_rewards) / len(total_rewards)
-    print(f"\n✅ Evaluation completed over {episode_num} episodes, average reward: {avg_reward:.2f}")
+    
+    msg = f"\n✅ Evaluation completed over {episode_num} episodes, average reward: {avg_reward:.2f}"
+    if logger:
+        logger.info(msg)
+    else:
+        print(msg)
+    return avg_reward
+
+import random
+def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=100, eval_num=30):
+    train_env_num = 50
+    test_env_num = 30
+    
+    logger = setup_logger(log_dir='./logs',
+                          log_prefix=(f"trainnode{train_node_num}_testnode{test_node_num}_"
+                          f"trainenv{train_env_num}_testenv{test_env_num}_epinum{episode_num}"))
+
+    train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=random.randint(0, 100000))
+    test_env = StateIOEnv(renderflag=False, num_nodes=test_node_num, seed = random.randint(0, 100000)) 
+
+    policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=use_attention)
+    optimizer = Adam(policy.parameters(), lr=3e-4)
+
+    logger.info(f"🚀 Start training on {train_node_num} nodes, testing on {test_node_num} nodes")
+
+    for i in range(train_env_num):
+        train_ppo(train_env, policy, optimizer, episode_num)
+
+    # Save
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    model_path = os.path.join("models", f"transfer_{train_node_num}to{test_node_num}_{timestamp}.pt")
+    torch.save(policy.state_dict(), model_path)
+    logger.info(f"Trained model saved to {model_path}")
+
+    for i in range(test_env_num):
+        avg_reward = evaluate_policy(test_env, policy, episode_num=eval_num)
+        
+    logger.info(f"Avg reward on {test_node_num} nodes after training on {train_node_num} nodes: {avg_reward:.2f}")
+
     return avg_reward
 
 
