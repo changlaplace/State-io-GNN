@@ -14,7 +14,7 @@ def setup_logger(log_dir="./logs", log_prefix="log"):
     
     os.makedirs(log_dir, exist_ok=True)
     pid = os.getpid()
-    log_filename = os.path.join(log_dir, f"{log_prefix}_{timestamp}.log")
+    log_filename = os.path.join(log_dir, f"{timestamp}_{log_prefix}.log")
 
     logger = logging.getLogger(str(pid))
     logger.setLevel(logging.INFO)
@@ -132,7 +132,7 @@ def transfer_experiment(train_node_num, test_node_num, use_attention=True, episo
     
     logger = setup_logger(log_dir='./logs',
                           log_prefix=(f"transfer{train_node_num}to{test_node_num}_"
-                          f"trainenv{train_env_num}_testenv{test_env_num}"))
+                          f"trainenv{train_env_num}_testenv{test_env_num}_att{use_attention}"))
 
    
     
@@ -187,13 +187,18 @@ if __name__=="__main__":
             print(f"GNN policy model saved to {model_path}")'''
     os.makedirs("models", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
+    node_a = 10
+    node_b = 5
     
     print("========== Transfer: a → b ==========")
-    transfer_experiment(train_node_num=10, test_node_num=5)
-
+    transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=True)
     print("========== Transfer: b → a ==========")
-    transfer_experiment(train_node_num=5, test_node_num=10)
+    transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=True)
 
+    print("========== Transfer: a → b ==========")
+    transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=False)
+    print("========== Transfer: b → a ==========")
+    transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=False)
     # print("\n📈 Transfer Results:")
     # print(f"Train on 30, Test on 5: {reward_30_to_5:.2f}")
     # print(f"Train on 5, Test on 30: {reward_5_to_30:.2f}")
