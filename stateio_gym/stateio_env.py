@@ -16,12 +16,12 @@ class StateIOEnv(gym.Env):
     The player sends units from one base to another to capture territory.
     """
 
-    def __init__(self, renderflag = True, seed=42):
+    def __init__(self, renderflag = True, num_nodes = 5, seed=42):
         super().__init__()
         np.random.seed(42)
         
         self.enemy_enabled = False
-        self.num_nodes = 5         # Number of bases on the map
+        self.num_nodes = num_nodes         # Number of bases on the map
         self.speed = 3
         self.step_count = 0
         self.max_timestep = 1000
@@ -174,7 +174,7 @@ class StateIOEnv(gym.Env):
             0 <= dst < self.num_nodes and
             src != dst
         ):
-            print(f"Action taken: Move from {src} to {dst}")
+            # print(f"Action taken: Move from {src} to {dst}")
             # Deduct units from source base
             units = self.my_troop_distribution[src]
 
@@ -213,7 +213,7 @@ class StateIOEnv(gym.Env):
                         reward += 5  # bonus for capturing a base
                     else:
                         # Even not occupying a base we will give rewards also
-                        reward += total_arrival_units * 0.2
+                        # reward += total_arrival_units * 0.2
                         self.neutral_troop_distribution[dst] -= total_arrival_units
                 else:
                     # This is purely reinforcement between already occupying bases
@@ -225,7 +225,7 @@ class StateIOEnv(gym.Env):
                 del self.my_troop_transferring[(src, dst)]
                     
         # Panalty for taking times
-        reward -= 0.5
+        reward -= 0.1
         
         # Check termination (for now: all neutral captured)
         if np.all(self.neutral_troop_distribution == 0):
