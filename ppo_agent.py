@@ -10,7 +10,7 @@ def select_action(policy, data):
     dist = D.Categorical(probs)
     edge_id = dist.sample()
     action = (data.edge_index[0, edge_id].item(), data.edge_index[1, edge_id].item())
-    return action, dist.log_prob(edge_id), dist.entropy()
+    return action, dist.log_prob(edge_id), dist.entropy(), edge_id
 
 def compute_returns(rewards, dones, gamma=0.99):
     returns = []

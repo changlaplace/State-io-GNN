@@ -38,7 +38,10 @@ for episode in range(1000):
     log_probs = torch.stack(log_probs)
     entropies = torch.stack(entropies)
     advantages = returns - returns.mean()
-
+    
+    log_probs = log_probs.detach()
+    advantages = advantages.detach()
+    entropies = entropies.detach()
     for _ in range(ppo_epochs):
         for i, data in enumerate(data_list):
             logits = policy(data)
