@@ -15,6 +15,7 @@ class StateIOEnv(gym.Env):
 
     def __init__(self, renderflag = True, num_nodes = 5, seed=42):
         super().__init__()
+        self.seed = seed
         np.random.seed(seed)
         
         self.enemy_enabled = False
@@ -120,11 +121,11 @@ class StateIOEnv(gym.Env):
 
         return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
     
-    def reset(self, seed=42):
+    def reset(self):
         """
         Resets the environment to its initial state.
         """
-        super().reset(seed=seed)
+        super().reset(seed=self.seed)
         
         self.step_count = 0
         
