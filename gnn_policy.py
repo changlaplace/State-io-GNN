@@ -22,8 +22,13 @@ class GNNPolicy(nn.Module):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         x = F.relu(self.gcn1(x, edge_index))
         x = F.relu(self.gcn2(x, edge_index))
-
+        # Currently x has the dimension of [num_nodes, hidden_dim]
         src, dst = edge_index
-        edge_input = torch.cat([x[src], x[dst], edge_attr], dim=1)
+        
+        h_src = x[src]
+        h_dst = x[dst]
+        h_diff = torch.abs(h_src - h_dst)  
+        edge_input = torch.cat([h_diff, edge_attr], dim=1)
+
         logits = self.edge_mlp(edge_input).squeeze(-1)
         return logits  # [num_edges]

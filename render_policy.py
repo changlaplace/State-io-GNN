@@ -8,19 +8,6 @@ import numpy as np
 import torch.nn.functional as F
 import time
 
-
-IFLOAD = True
-
-model_folder = r'./models'
-model_name = r'policy_gnn_20250610_000721.pt'
-
-policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
-if IFLOAD:
-    policy.load_state_dict(torch.load(os.path.join(model_folder, model_name)))
-policy.eval()
-
-
-
 def pygame_loop(env, policy):
     X_SCALE_RATIO = 7
     Y_SCALE_RATIO = 5.5
@@ -46,13 +33,16 @@ def pygame_loop(env, policy):
 
         if not (done or truncated):
             with torch.no_grad():
-       
-                logits = policy(obs)
-                probs = F.softmax(logits, dim=0)
-                action_index = torch.argmax(probs).item()  # greedy
-                src = obs.edge_index[0, action_index].item()
-                dst = obs.edge_index[1, action_index].item()
-                obs, reward, done, truncated, info = env.step((src, dst))
+                if ADDRANDOM:
+                    action, log_prob, entropy, edge_id = select_action(policy, obs)
+                    obs, reward, done, truncated, _ = env.step(action)
+                else:
+                    logits = policy(obs)
+                    probs = F.softmax(logits, dim=0)
+                    action_index = torch.argmax(probs).item()  # greedy
+                    src = obs.edge_index[0, action_index].item()
+                    dst = obs.edge_index[1, action_index].item()
+                    obs, reward, done, truncated, info = env.step((src, dst))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -98,7 +88,19 @@ def pygame_loop(env, policy):
         clock.tick(30)  
 
     pygame.quit()
-    
+  
+
 if __name__ == "__main__":
-    env = StateIOEnv(renderflag=False, num_nodes=5, seed=42)
+    IFLOAD = True
+
+    ADDRANDOM = True
+    model_folder = r'./models'
+    model_name = r'policy_gnn_20250610_000721.pt'
+
+    policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
+    if IFLOAD:
+        policy.load_state_dict(torch.load(os.path.join(model_folder, model_name)))
+    policy.eval()
+
+    env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
     pygame_loop(env, policy)
