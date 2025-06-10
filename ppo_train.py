@@ -12,7 +12,7 @@ IFSAVE = True
 IFLOAD = False
 
 
-policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
+policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=True)
 if IFLOAD:
     policy.load_state_dict(torch.load("policy_gnn.pt"))
 
