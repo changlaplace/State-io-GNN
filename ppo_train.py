@@ -28,7 +28,7 @@ def setup_logger(log_dir="./logs", log_prefix="log"):
     return logger
 
 gamma = 0.99
-clip_eps = 0.2
+clip_eps = 0.1
 ppo_epochs = 4
 
 def train_ppo(env, policy, optimizer, episode_num, logger=None):
@@ -127,7 +127,7 @@ def evaluate_policy(env, policy, episode_num=50, logger=None):
 
 import random
 def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=100, eval_num=30):
-    train_env_num = 20
+    train_env_num = 10
     test_env_num = 10
     
     logger = setup_logger(log_dir='./logs',
@@ -185,6 +185,7 @@ if __name__=="__main__":
             model_path = os.path.join(r'./models', model_path)
             torch.save(policy.state_dict(), model_path)
             print(f"GNN policy model saved to {model_path}")'''
+            
     os.makedirs("models", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     node_a = 10

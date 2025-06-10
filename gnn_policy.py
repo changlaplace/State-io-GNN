@@ -16,7 +16,7 @@ class GNNPolicy(nn.Module):
             self.conv2 = GCNConv(hidden_dim, hidden_dim)
 
         self.edge_mlp = nn.Sequential(
-            nn.Linear(hidden_dim + edge_feat_dim, hidden_dim),
+            nn.Linear(hidden_dim * 2+ edge_feat_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 1)
         )
@@ -31,7 +31,7 @@ class GNNPolicy(nn.Module):
         h_src = x[src]
         h_dst = x[dst]
 
-        h_diff = h_src - h_dst  # 保留方向信息
+        h_diff = torch.cat([h_src, h_dst],dim=1)
         edge_input = torch.cat([h_diff, edge_attr], dim=1)
 
         logits = self.edge_mlp(edge_input).squeeze(-1)
