@@ -127,15 +127,15 @@ def evaluate_policy(env, policy, episode_num=50, logger=None):
 
 import random
 def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=100, eval_num=30):
-    train_env_num = 50
-    test_env_num = 30
+    train_env_num = 20
+    test_env_num = 10
     
     logger = setup_logger(log_dir='./logs',
-                          log_prefix=(f"trainnode{train_node_num}_testnode{test_node_num}_"
-                          f"trainenv{train_env_num}_testenv{test_env_num}_epinum{episode_num}"))
+                          log_prefix=(f"transfer{train_node_num}to{test_node_num}_"
+                          f"trainenv{train_env_num}_testenv{test_env_num}"))
 
-    train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=random.randint(0, 100000))
-    test_env = StateIOEnv(renderflag=False, num_nodes=test_node_num, seed = random.randint(0, 100000)) 
+   
+    
 
     policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=use_attention)
     optimizer = Adam(policy.parameters(), lr=3e-4)
@@ -143,40 +143,59 @@ def transfer_experiment(train_node_num, test_node_num, use_attention=True, episo
     logger.info(f"🚀 Start training on {train_node_num} nodes, testing on {test_node_num} nodes")
 
     for i in range(train_env_num):
+        current_seed = random.randint(0, 1000000)
+        logger.warning(f"Now training with the {i}th env node {train_node_num} with seed {current_seed}")
+        train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=current_seed, logger = logger)
         train_ppo(train_env, policy, optimizer, episode_num)
 
+
+    for j in range(test_env_num):
+        current_seed = random.randint(0, 1000000)
+        logger.warning(f"Now evaling with the {j}th env node {test_node_num} with seed {current_seed}")
+        test_env = StateIOEnv(renderflag=False, num_nodes=test_node_num, seed = current_seed, logger = logger) 
+        avg_reward = evaluate_policy(test_env, policy, episode_num=eval_num)
+    
     # Save
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     model_path = os.path.join("models", f"transfer_{train_node_num}to{test_node_num}_{timestamp}.pt")
     torch.save(policy.state_dict(), model_path)
     logger.info(f"Trained model saved to {model_path}")
-
-    for i in range(test_env_num):
-        avg_reward = evaluate_policy(test_env, policy, episode_num=eval_num)
-        
     logger.info(f"Avg reward on {test_node_num} nodes after training on {train_node_num} nodes: {avg_reward:.2f}")
 
     return avg_reward
 
 
 if __name__=="__main__":
+    '''    IFSAVE = True
+        IFLOAD = False
 
-    IFSAVE = True
-    IFLOAD = False
 
+        policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=True)
+        if IFLOAD:
+            policy.load_state_dict(torch.load("policy_gnn.pt"))
 
-    policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=True)
-    if IFLOAD:
-        policy.load_state_dict(torch.load("policy_gnn.pt"))
+        env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
+        optimizer = Adam(policy.parameters(), lr=3e-4)
+        
+        train_ppo(env, policy, optimizer, episode_num=100)
 
-    env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
-    optimizer = Adam(policy.parameters(), lr=3e-4)
+        if IFSAVE:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = f"policy_gnn_{timestamp}.pt"
+            model_path = os.path.join(r'./models', model_path)
+            torch.save(policy.state_dict(), model_path)
+            print(f"GNN policy model saved to {model_path}")'''
+    os.makedirs("models", exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
     
-    train_ppo(env, policy, optimizer, episode_num=100)
+    print("========== Transfer: 30 → 5 ==========")
+    reward_30_to_5 = transfer_experiment(train_node_num=30, test_node_num=5)
 
-    if IFSAVE:
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_path = f"policy_gnn_{timestamp}.pt"
-        model_path = os.path.join(r'./models', model_path)
-        torch.save(policy.state_dict(), model_path)
-        print(f"GNN policy model saved to {model_path}")
+    print("========== Transfer: 5 → 30 ==========")
+    reward_5_to_30 = transfer_experiment(train_node_num=5, test_node_num=30)
+
+    print("\n📈 Transfer Results:")
+    print(f"Train on 30, Test on 5: {reward_30_to_5:.2f}")
+    print(f"Train on 5, Test on 30: {reward_5_to_30:.2f}")
+    
+    
