@@ -5,7 +5,9 @@ import random
 import networkx as nx
 import matplotlib.pyplot as plt
 import time
-from matplotlib import animation
+import torch
+from torch_geometric.data import Data
+
 
 class StateIOEnv(gym.Env):
     """
@@ -22,7 +24,7 @@ class StateIOEnv(gym.Env):
         self.num_nodes = 5         # Number of bases on the map
         self.speed = 3
         self.step_count = 0
-        self.max_timestep = 10000
+        self.max_timestep = 1000
         
         self.renderflag = renderflag
 
@@ -46,39 +48,81 @@ class StateIOEnv(gym.Env):
             self.fig, self.ax = plt.subplots(figsize=(8, 6))
 
 
-    def encode_transfers(self, max_transfers=50):
+    # def encode_transfers(self, max_transfers=50):
+    #     """
+    #     Encode my_troop_transferring into a fixed-size numpy array.
+    #     Each transfer is [src, dst, units, time_remaining]
+    #     Output shape: (max_transfers * 4,)
+    #     """
+    #     transfers = []
+
+    #     for (src, dst), troop_list in self.my_troop_transferring.items():
+    #         for troop in troop_list:
+    #             transfers.append([src, dst, troop["units"], troop["time_remaining"]])
+
+    #     # Pad with zeros if not enough transfers
+    #     while len(transfers) < max_transfers:
+    #         transfers.append([0, 0, 0, 0])
+
+    #     # Clip if too many transfers (or raise warning)
+    #     transfers = transfers[:max_transfers]
+
+    #     return np.array(transfers, dtype=np.int32).flatten()
+    # def _construct_observation(self):
+    #     """
+    #     Combine troop distributions and encoded transfers into a flat observation vector.
+    #     Final shape: (2 * num_nodes + 80,)
+    #     """
+    #     base_obs = np.concatenate([
+    #         self.my_troop_distribution,          # shape = (num_nodes,)
+    #         self.neutral_troop_distribution      # shape = (num_nodes,)
+    #     ])
+    #     transfer_obs = self.encode_transfers(max_transfers=20).flatten()  # shape = (max_transfers*4, )
+
+    #     full_obs = np.concatenate([base_obs, transfer_obs])     # shape = (2*num_nodes + 80,)
+    #     return full_obs.astype(np.int32)
+    def _construct_observation(self) -> Data:
         """
-        Encode my_troop_transferring into a fixed-size numpy array.
-        Each transfer is [src, dst, units, time_remaining]
-        Output shape: (max_transfers * 4,)
+        Constructs a PyG-compatible Data object with troop transfers encoded into edge attributes.
         """
-        transfers = []
+        # 1. Node features: [my_troops, neutral_troops]
+        x = torch.tensor([
+            [self.my_troop_distribution[i], self.neutral_troop_distribution[i], self.positions[i][0], self.positions[i][1]]
+            for i in range(self.num_nodes)
+        ], dtype=torch.float)
 
-        for (src, dst), troop_list in self.my_troop_transferring.items():
-            for troop in troop_list:
-                transfers.append([src, dst, troop["units"], troop["time_remaining"]])
+        # 2. Edge index and rich edge attributes
+        edge_index = []
+        edge_attr = []
+        for i in range(self.num_nodes):
+            for j in range(self.num_nodes):
+                if i != j and self.G.has_edge(i, j):
+                    distance = self.distance_matrix[i, j]
 
-        # Pad with zeros if not enough transfers
-        while len(transfers) < max_transfers:
-            transfers.append([0, 0, 0, 0])
+                    # Default values
+                    total_units = 0.0
+                    avg_time = 0.0
+                    num_transfers = 0
 
-        # Clip if too many transfers (or raise warning)
-        transfers = transfers[:max_transfers]
+                    if (i, j) in self.my_troop_transferring:
+                        troop_list = self.my_troop_transferring[(i, j)]
+                        num_transfers = len(troop_list)
+                        total_units = sum(t["units"] for t in troop_list)
+                        avg_time = sum(t["time_remaining"] for t in troop_list) / num_transfers if num_transfers > 0 else 0.0
 
-        return np.array(transfers, dtype=np.int32).flatten()
-    def _construct_observation(self):
-        """
-        Combine troop distributions and encoded transfers into a flat observation vector.
-        Final shape: (2 * num_nodes + 80,)
-        """
-        base_obs = np.concatenate([
-            self.my_troop_distribution,          # shape = (num_nodes,)
-            self.neutral_troop_distribution      # shape = (num_nodes,)
-        ])
-        transfer_obs = self.encode_transfers(max_transfers=20).flatten()  # shape = (max_transfers*4, )
+                    edge_index.append([i, j])
+                    edge_attr.append([
+                        distance,
+                        total_units,
+                        avg_time,
+                        num_transfers
+                    ])
 
-        full_obs = np.concatenate([base_obs, transfer_obs])     # shape = (2*num_nodes + 80,)
-        return full_obs.astype(np.int32)
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()   # [2, num_edges]
+        edge_attr = torch.tensor(edge_attr, dtype=torch.float)                     # [num_edges, 4]
+
+        return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+    
     def reset(self, seed=42):
         """
         Resets the environment to its initial state.
@@ -109,7 +153,7 @@ class StateIOEnv(gym.Env):
         if self.renderflag:
             self.render()
 
-        return state.flatten(), info
+        return state, info
 
     def step(self, action):
         """
