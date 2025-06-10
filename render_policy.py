@@ -95,12 +95,12 @@ if __name__ == "__main__":
 
     ADDRANDOM = True
     model_folder = r'./models'
-    model_name = r'policy_gnn_20250610_000721.pt'
+    model_name = r'policy_gnn_20250610_011616.pt'
 
     policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
     if IFLOAD:
         policy.load_state_dict(torch.load(os.path.join(model_folder, model_name)))
     policy.eval()
 
-    env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
+    env = StateIOEnv(renderflag=False, num_nodes=50, seed=42)
     pygame_loop(env, policy)

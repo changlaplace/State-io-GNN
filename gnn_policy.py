@@ -13,7 +13,7 @@ class GNNPolicy(nn.Module):
         self.gcn1 = GCNConv(in_channels, hidden_dim)
         self.gcn2 = GCNConv(hidden_dim, hidden_dim)
         self.edge_mlp = nn.Sequential(
-            nn.Linear(2 * hidden_dim + edge_feat_dim, hidden_dim),
+            nn.Linear(hidden_dim + edge_feat_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, 1)
         )

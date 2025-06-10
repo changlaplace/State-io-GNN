@@ -16,7 +16,7 @@ policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64)
 if IFLOAD:
     policy.load_state_dict(torch.load("policy_gnn.pt"))
 
-env = StateIOEnv(renderflag=False, num_nodes=5, seed=42)
+env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
 optimizer = Adam(policy.parameters(), lr=3e-4)
 
 gamma = 0.99
