@@ -82,6 +82,6 @@ def pygame_loop(env):
                 draw_text(str(troop["units"]), (xt - 10, yt - 20))
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(30)
 
     pygame.quit()
