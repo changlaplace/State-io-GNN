@@ -176,18 +176,19 @@ class StateIOEnv(gym.Env):
             # Deduct units from source base
             units = self.my_troop_distribution[src]
 
-            self.my_troop_distribution[src] = 0
-            
-            time_to_arrive = self.distance_matrix[src, dst] / self.speed  # Compute time based on distance / speed
-            
-            
-            # Add to transfers
-            if (src, dst) not in self.my_troop_transferring:
-                self.my_troop_transferring[(src, dst)] = []
-            self.my_troop_transferring[(src, dst)].append({
-                "units": units,
-                "time_remaining": time_to_arrive
-                })
+            if units>0:
+                self.my_troop_distribution[src] = 0
+                
+                time_to_arrive = self.distance_matrix[src, dst] / self.speed  # Compute time based on distance / speed
+                
+                
+                # Add to transfers
+                if (src, dst) not in self.my_troop_transferring:
+                    self.my_troop_transferring[(src, dst)] = []
+                self.my_troop_transferring[(src, dst)].append({
+                    "units": units,
+                    "time_remaining": time_to_arrive
+                    })
             
         # Update transferring troops
         for (src, dst), troop_list in list(self.my_troop_transferring.items()):

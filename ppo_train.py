@@ -8,10 +8,10 @@ from ppo_agent import select_action, compute_returns
 import datetime
 import logging
 
+
+
 def setup_logger(log_dir="./logs", log_prefix="log"):
-    
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    
     os.makedirs(log_dir, exist_ok=True)
     pid = os.getpid()
     log_filename = os.path.join(log_dir, f"{timestamp}_{log_prefix}.log")
@@ -20,15 +20,21 @@ def setup_logger(log_dir="./logs", log_prefix="log"):
     logger.setLevel(logging.INFO)
 
     if not logger.handlers:
-        handler = logging.FileHandler(log_filename, mode='a', encoding='utf-8')
+        # File handler
+        file_handler = logging.FileHandler(log_filename, mode='a', encoding='utf-8')
         formatter = logging.Formatter('[%(asctime)s] [PID %(process)d] [%(levelname)s] %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        # Stream handler (terminal)
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
 
     return logger
 
 gamma = 0.99
-clip_eps = 0.1
+clip_eps = 0.05
 ppo_epochs = 4
 
 def train_ppo(env, policy, optimizer, episode_num, logger=None):
@@ -127,8 +133,8 @@ def evaluate_policy(env, policy, episode_num=50, logger=None):
 
 import random
 def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=100, eval_num=30):
-    train_env_num = 10
-    test_env_num = 10
+    train_env_num = 1
+    test_env_num = 1
     
     logger = setup_logger(log_dir='./logs',
                           log_prefix=(f"transfer{train_node_num}to{test_node_num}_"
