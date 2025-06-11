@@ -13,7 +13,7 @@ class StateIOEnv(gym.Env):
     The player sends units from one base to another to capture territory.
     """
 
-    def __init__(self, renderflag = True, num_nodes = 5, seed=42, knn_neighbor = 4):
+    def __init__(self, renderflag = True, num_nodes = 5, seed=42, knn_neighbor = None):
         super().__init__()
         self.seed = seed
         np.random.seed(seed)
@@ -45,6 +45,10 @@ class StateIOEnv(gym.Env):
         if self.renderflag:
             self.fig, self.ax = plt.subplots(figsize=(8, 6))
         if self.knn_neighbor!=None:
+            pos = torch.tensor([
+            [self.positions[i][0], self.positions[i][1]]
+            for i in range(self.num_nodes)
+            ], dtype=torch.float)
             self.edge_index = knn_graph(pos, k=self.knn_neighbor, loop=False)  # shape [2, num_edges]
     def _construct_observation(self) -> Data:
         """

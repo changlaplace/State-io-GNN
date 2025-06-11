@@ -132,8 +132,9 @@ def evaluate_policy(env, policy, episode_num=50, logger=None):
     return avg_reward
 
 import random
-def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=50, eval_num=30):
-    train_env_num = 10
+
+def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=10, eval_num=10):
+    train_env_num = 5
     test_env_num = 5
     
     logger = setup_logger(log_dir='./logs',
@@ -171,30 +172,10 @@ def transfer_experiment(train_node_num, test_node_num, use_attention=True, episo
     return avg_reward
 
 
-if __name__=="__main__":
-    '''    IFSAVE = True
-        IFLOAD = False
-
-
-        policy = GNNPolicy(in_channels=4, edge_feat_dim=4, hidden_dim=64, use_attention=True)
-        if IFLOAD:
-            policy.load_state_dict(torch.load("policy_gnn.pt"))
-
-        env = StateIOEnv(renderflag=False, num_nodes=30, seed=42)
-        optimizer = Adam(policy.parameters(), lr=3e-4)
-        
-        train_ppo(env, policy, optimizer, episode_num=100)
-
-        if IFSAVE:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_path = f"policy_gnn_{timestamp}.pt"
-            model_path = os.path.join(r'./models', model_path)
-            torch.save(policy.state_dict(), model_path)
-            print(f"GNN policy model saved to {model_path}")'''
-            
+if __name__=="__main__":    
     os.makedirs("models", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
-    node_a = 10
+    node_a = 2
     node_b = 5
     
     # print("========== Transfer: a → b ==========")
@@ -202,8 +183,8 @@ if __name__=="__main__":
     # print("========== Transfer: b → a ==========")
     # transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=True)
 
-    print("========== Transfer: a → b ==========")
-    transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=False)
+    # print("========== Transfer: a → b ==========")
+    # transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=False)
     print("========== Transfer: b → a ==========")
     transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=False)
     # print("\n📈 Transfer Results:")
