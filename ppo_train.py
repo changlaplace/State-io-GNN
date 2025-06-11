@@ -132,9 +132,9 @@ def evaluate_policy(env, policy, episode_num=50, logger=None):
     return avg_reward
 
 import random
-def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=100, eval_num=30):
-    train_env_num = 1
-    test_env_num = 1
+def transfer_experiment(train_node_num, test_node_num, use_attention=True, episode_num=50, eval_num=30):
+    train_env_num = 10
+    test_env_num = 5
     
     logger = setup_logger(log_dir='./logs',
                           log_prefix=(f"transfer{train_node_num}to{test_node_num}_"
@@ -197,10 +197,10 @@ if __name__=="__main__":
     node_a = 10
     node_b = 5
     
-    print("========== Transfer: a → b ==========")
-    transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=True)
-    print("========== Transfer: b → a ==========")
-    transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=True)
+    # print("========== Transfer: a → b ==========")
+    # transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=True)
+    # print("========== Transfer: b → a ==========")
+    # transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=True)
 
     print("========== Transfer: a → b ==========")
     transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=False)

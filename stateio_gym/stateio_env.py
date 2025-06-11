@@ -4,7 +4,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import torch
 from torch_geometric.data import Data
-
+from torch_geometric.nn import knn_graph
 
 class StateIOEnv(gym.Env):
     """
@@ -13,11 +13,11 @@ class StateIOEnv(gym.Env):
     The player sends units from one base to another to capture territory.
     """
 
-    def __init__(self, renderflag = True, num_nodes = 5, seed=42):
+    def __init__(self, renderflag = True, num_nodes = 5, seed=42, knn_neighbor = 4):
         super().__init__()
         self.seed = seed
         np.random.seed(seed)
-        
+        self.knn_neighbor = knn_neighbor
         self.enemy_enabled = False
         self.num_nodes = num_nodes         # Number of bases on the map
         self.speed = 3
@@ -44,83 +44,71 @@ class StateIOEnv(gym.Env):
                 G.add_edge(i, j, weight=dist)
         if self.renderflag:
             self.fig, self.ax = plt.subplots(figsize=(8, 6))
-
-
-    # def encode_transfers(self, max_transfers=50):
-    #     """
-    #     Encode my_troop_transferring into a fixed-size numpy array.
-    #     Each transfer is [src, dst, units, time_remaining]
-    #     Output shape: (max_transfers * 4,)
-    #     """
-    #     transfers = []
-
-    #     for (src, dst), troop_list in self.my_troop_transferring.items():
-    #         for troop in troop_list:
-    #             transfers.append([src, dst, troop["units"], troop["time_remaining"]])
-
-    #     # Pad with zeros if not enough transfers
-    #     while len(transfers) < max_transfers:
-    #         transfers.append([0, 0, 0, 0])
-
-    #     # Clip if too many transfers (or raise warning)
-    #     transfers = transfers[:max_transfers]
-
-    #     return np.array(transfers, dtype=np.int32).flatten()
-    # def _construct_observation(self):
-    #     """
-    #     Combine troop distributions and encoded transfers into a flat observation vector.
-    #     Final shape: (2 * num_nodes + 80,)
-    #     """
-    #     base_obs = np.concatenate([
-    #         self.my_troop_distribution,          # shape = (num_nodes,)
-    #         self.neutral_troop_distribution      # shape = (num_nodes,)
-    #     ])
-    #     transfer_obs = self.encode_transfers(max_transfers=20).flatten()  # shape = (max_transfers*4, )
-
-    #     full_obs = np.concatenate([base_obs, transfer_obs])     # shape = (2*num_nodes + 80,)
-    #     return full_obs.astype(np.int32)
+        if self.knn_neighbor!=None:
+            self.edge_index = knn_graph(pos, k=self.knn_neighbor, loop=False)  # shape [2, num_edges]
     def _construct_observation(self) -> Data:
         """
-        Constructs a PyG-compatible Data object with troop transfers encoded into edge attributes.
+        Constructs a PyG-compatible Data object with k-NN edges based on node positions.
         """
-        # 1. Node features: [my_troops, neutral_troops]
+        # 1. Node features: [my_troops, neutral_troops, pos_x, pos_y]
         x = torch.tensor([
             [self.my_troop_distribution[i], self.neutral_troop_distribution[i], self.positions[i][0], self.positions[i][1]]
             for i in range(self.num_nodes)
         ], dtype=torch.float)
 
-        # 2. Edge index and rich edge attributes
-        edge_index = []
-        edge_attr = []
-        for i in range(self.num_nodes):
-            for j in range(self.num_nodes):
-                if i != j and self.G.has_edge(i, j):
-                    distance = self.distance_matrix[i, j]
+        pos = x[:, 2:4]  # Extract positions for knn_graph
 
-                    # Default values
-                    total_units = 0.0
-                    avg_time = 0.0
-                    num_transfers = 0
+        # 2. Use k-NN to define edge_index
+        if self.knn_neighbor!=None:
+            edge_index = self.edge_index
+            # 3. Compute edge attributes based on edge_index
+            edge_attr = []
+            for src, dst in edge_index.t().tolist():
+                distance = self.distance_matrix[src, dst]
+                total_units = 0.0
+                avg_time = 0.0
+                num_transfers = 0
+                if (src, dst) in self.my_troop_transferring:
+                    troop_list = self.my_troop_transferring[(src, dst)]
+                    num_transfers = len(troop_list)
+                    total_units = sum(t["units"] for t in troop_list)
+                    avg_time = sum(t["time_remaining"] for t in troop_list) / num_transfers if num_transfers > 0 else 0.0
 
-                    if (i, j) in self.my_troop_transferring:
-                        troop_list = self.my_troop_transferring[(i, j)]
-                        num_transfers = len(troop_list)
-                        total_units = sum(t["units"] for t in troop_list)
-                        avg_time = sum(t["time_remaining"] for t in troop_list) / num_transfers if num_transfers > 0 else 0.0
+                edge_attr.append([distance, total_units, avg_time, num_transfers])
 
-                    edge_index.append([i, j])
-                    edge_attr.append([
-                        distance,
-                        total_units,
-                        avg_time,
-                        num_transfers
-                    ])
+            edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        else:
+            edge_index = []
+            edge_attr = []
+            for i in range(self.num_nodes):
+                for j in range(self.num_nodes):
+                    if i != j and self.G.has_edge(i, j):
+                        distance = self.distance_matrix[i, j]
 
-        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()   # [2, num_edges]
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)                     # [num_edges, 4]
+                        # Default values
+                        total_units = 0.0
+                        avg_time = 0.0
+                        num_transfers = 0
+
+                        if (i, j) in self.my_troop_transferring:
+                            troop_list = self.my_troop_transferring[(i, j)]
+                            num_transfers = len(troop_list)
+                            total_units = sum(t["units"] for t in troop_list)
+                            avg_time = sum(t["time_remaining"] for t in troop_list) / num_transfers if num_transfers > 0 else 0.0
+
+                        edge_index.append([i, j])
+                        edge_attr.append([
+                            distance,
+                            total_units,
+                            avg_time,
+                            num_transfers
+                        ])
+
+            edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()   # [2, num_edges]
+            edge_attr = torch.tensor(edge_attr, dtype=torch.float)    
 
         return Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
-    
+
     def reset(self):
         """
         Resets the environment to its initial state.
