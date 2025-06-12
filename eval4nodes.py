@@ -12,7 +12,7 @@ from ppo_train import *
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 model_folder = "./models" 
-model_name = "train_node_num5_20250611_184007.pt" 
+model_name = "train_node_num20_20250611_212420.pt" 
 
 gamma = 0.99
 clip_eps = 0.05
@@ -92,6 +92,7 @@ reward_std_r = [np.std(x) for x in reward_w_node_r]
 time_mean_r = [np.mean(x) for x in time_w_node_r]
 time_std_r = [np.std(x) for x in time_w_node_r]
 
+image_folder = "./images"
 plt.figure()
 plt.errorbar(test_node_nums, reward_mean, yerr=reward_std, fmt='-o', capsize=4, label='Policy', color='orange')
 plt.errorbar(test_node_nums, reward_mean_r, yerr=reward_std_r, fmt='-o', capsize=4, label='Random', color='gray')
@@ -101,7 +102,11 @@ plt.title("Reward vs Node Count")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
+
+plt.savefig(os.path.join(image_folder, f"Reward vs node {timestamp}"))
 plt.show()
+plt.close()
+
 
 plt.figure()
 plt.errorbar(test_node_nums, time_mean, yerr=time_std, fmt='-o', capsize=4, label='Policy', color='orange')
@@ -112,4 +117,7 @@ plt.title("Steps vs Node Count")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
+
+plt.savefig(os.path.join(image_folder, f"Steps vs node {timestamp}"))
 plt.show()
+plt.close()

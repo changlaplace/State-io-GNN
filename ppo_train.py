@@ -37,62 +37,151 @@ gamma = 0.99
 clip_eps = 0.05
 ppo_epochs = 4
 
-def train_ppo(env, policy, optimizer, episode_num, logger=None):
+def train_ppo(env, policy, optimizer, episode_num, logger=None, update_every=10):
     reward_list = []
     times_list = []
+
+    gamma = 0.99
+    eps_clip = 0.05
+    entropy_coeff = 0.01
+
+    # 用于收集数据的 buffer
+    buffer = []
+
     for episode in range(episode_num):
         obs, _ = env.reset()
-        log_probs, rewards, entropies, edge_ids = [], [], [], []
-        done = False
-        truncated = False
-        data_list = []
+        done, truncated = False, False
+        episode_reward = 0
+        step_count = 0
 
         while not (done or truncated):
-            data = obs  # now obs is torch_geometric.data.Data
+            data = obs
             action, log_prob, entropy, edge_id = select_action(policy, data)
+
+            # detach edge_id（如果是 Tensor）
+            edge_id = edge_id.item() if isinstance(edge_id, torch.Tensor) else edge_id
 
             obs, reward, done, truncated, _ = env.step(action)
 
-            log_probs.append(log_prob)
-            edge_ids.append(edge_id)
-            rewards.append(reward)
-            entropies.append(entropy)
-            data_list.append(data)
+            buffer.append({
+                "data": data,
+                "action": edge_id,
+                "log_prob": log_prob.detach(),
+                "reward": reward,
+                "entropy": entropy.detach(),
+            })
 
-        returns = compute_returns(rewards, [done or truncated] * len(rewards))
+            episode_reward += reward
+            step_count += 1
 
-        log_probs = torch.stack(log_probs)
-        entropies = torch.stack(entropies)
-        advantages = returns - returns.mean()
-        
-        log_probs = log_probs.detach()
-        advantages = advantages.detach()
-        entropies = entropies.detach()
-        for _ in range(ppo_epochs):
-            for i, data in enumerate(data_list):
-                logits = policy(data)
-                probs = torch.softmax(logits, dim=0)
-                dist = torch.distributions.Categorical(probs)
-                new_log_prob = dist.log_prob(edge_ids[i])  # use the same sampled edge id
-                ratio = torch.exp(new_log_prob - log_probs[i].detach())
+        reward_list.append(episode_reward)
+        times_list.append(step_count)
 
-                surr1 = ratio * advantages[i]
-                surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * advantages[i]
-                loss = -torch.min(surr1, surr2) - 0.01 * entropies[i]
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
-        status = "done" if done else "truncated"
-        msg = (f"[Episode {episode}] Total reward: {sum(rewards):.2f}, Time step: {env.step_count}, Terminated by: {status}")
         if logger:
-            logger.info(msg)
+            status = "done" if done else "truncated"
+            logger.info(f"[Episode {episode}] Reward: {episode_reward:.2f}, Steps: {step_count}, Terminated by: {status}")
         else:
-            print(msg)
-        reward_list.append(rewards)
-        times_list.append(env.step_count)
+            print(f"[Episode {episode}] Reward: {episode_reward:.2f}, Steps: {step_count}")
+
+        # 如果达到 update 周期，开始训练
+        if (episode + 1) % update_every == 0 or episode == episode_num - 1:
+            # === 计算 returns 和 advantages ===
+            rewards = [entry["reward"] for entry in buffer]
+            returns = []
+            R = 0
+            for r in reversed(rewards):
+                R = r + gamma * R
+                returns.insert(0, R)
+            returns = torch.tensor(returns, dtype=torch.float32)
+            advantages = returns - returns.mean()
+            advantages /= (advantages.std() + 1e-8)
+
+            # === PPO 多 epoch 更新 ===
+            for _ in range(ppo_epochs):
+                indices = torch.randperm(len(buffer))
+                for i in indices:
+                    entry = buffer[i]
+                    data = entry["data"]
+                    old_log_prob = entry["log_prob"]
+                    edge_id = entry["action"]
+                    advantage = advantages[i]
+                    entropy = entry["entropy"]
+
+                    logits = policy(data)
+                    probs = torch.softmax(logits, dim=0)
+                    dist = torch.distributions.Categorical(probs)
+                    new_log_prob = dist.log_prob(torch.tensor(edge_id))
+
+                    ratio = torch.exp(new_log_prob - old_log_prob)
+                    surr1 = ratio * advantage
+                    surr2 = torch.clamp(ratio, 1 - eps_clip, 1 + eps_clip) * advantage
+                    loss = -torch.min(surr1, surr2) - entropy_coeff * entropy
+
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+            buffer.clear()  # 清空 buffer，为下一轮收集数据
+
     return reward_list, times_list
+
+
+# def train_ppo(env, policy, optimizer, episode_num, logger=None):
+#     reward_list = []
+#     times_list = []
+#     for episode in range(episode_num):
+#         obs, _ = env.reset()
+#         log_probs, rewards, entropies, edge_ids = [], [], [], []
+#         done = False
+#         truncated = False
+#         data_list = []
+
+#         while not (done or truncated):
+#             data = obs  # now obs is torch_geometric.data.Data
+#             action, log_prob, entropy, edge_id = select_action(policy, data)
+
+#             obs, reward, done, truncated, _ = env.step(action)
+
+#             log_probs.append(log_prob)
+#             edge_ids.append(edge_id)
+#             rewards.append(reward)
+#             entropies.append(entropy)
+#             data_list.append(data)
+
+#         returns = compute_returns(rewards, [done or truncated] * len(rewards))
+
+#         log_probs = torch.stack(log_probs)
+#         entropies = torch.stack(entropies)
+#         advantages = returns - returns.mean()
+        
+#         log_probs = log_probs.detach()
+#         advantages = advantages.detach()
+#         entropies = entropies.detach()
+#         for _ in range(ppo_epochs):
+#             for i, data in enumerate(data_list):
+#                 logits = policy(data)
+#                 probs = torch.softmax(logits, dim=0)
+#                 dist = torch.distributions.Categorical(probs)
+#                 new_log_prob = dist.log_prob(edge_ids[i])  # use the same sampled edge id
+#                 ratio = torch.exp(new_log_prob - log_probs[i].detach())
+
+#                 surr1 = ratio * advantages[i]
+#                 surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * advantages[i]
+#                 loss = -torch.min(surr1, surr2) - 0.01 * entropies[i]
+
+#                 optimizer.zero_grad()
+#                 loss.backward()
+#                 optimizer.step()
+                
+#         status = "done" if done else "truncated"
+#         msg = (f"[Episode {episode}] Total reward: {sum(rewards):.2f}, Time step: {env.step_count}, Terminated by: {status}")
+#         if logger:
+#             logger.info(msg)
+#         else:
+#             print(msg)
+#         reward_list.append(rewards)
+#         times_list.append(env.step_count)
+#     return reward_list, times_list
 
 def evaluate_policy(env, policy, episode_num=50, logger=None):
     policy.eval()

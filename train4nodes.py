@@ -12,7 +12,7 @@ from ppo_train import *
 gamma = 0.99
 clip_eps = 0.05
 ppo_epochs = 4
-train_node_num = 30
+train_node_num = 20
 train_env_num = 1
 episode_num = 100
 
