@@ -14,7 +14,10 @@ clip_eps = 0.05
 ppo_epochs = 4
 train_node_num = 30
 train_env_num = 1
-episode_num = 30
+episode_num = 100
+
+rewards = []
+timesteps = []
 
 logger = setup_logger(log_prefix=f"get_model_{train_node_num}")
 
@@ -26,9 +29,37 @@ for i in range(train_env_num):
     current_seed = random.randint(0, 1000000)
     logger.warning(f"Now training with the {i}th env node {train_node_num} with seed {current_seed}")
     train_env = StateIOEnv(renderflag=False, num_nodes=train_node_num, seed=current_seed)
-    train_ppo(train_env, policy, optimizer, episode_num, logger = logger)
+    rewards,timesteps = train_ppo(train_env, policy, optimizer, episode_num, logger = logger)
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 model_path = os.path.join("models", f"train_node_num{train_node_num}_{timestamp}.pt")
 torch.save(policy.state_dict(), model_path)
 logger.info(f"Trained model saved to {model_path}")
+
+import numpy as np
+import matplotlib.pyplot as plt
+np.save(f"logs/reward_curve_{timestamp}.npy", np.array(rewards))
+np.save(f"logs/timestep_curve_{timestamp}.npy", np.array(timesteps))
+
+# 绘图
+plt.figure()
+plt.plot(rewards, label='Episode Reward')
+plt.xlabel("Episode")
+plt.ylabel("Reward")
+plt.title("Training Reward over Episodes")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig(f"logs/reward_curve_{timestamp}.png")
+plt.show()
+
+plt.figure()
+plt.plot(timesteps, label='Steps per Episode')
+plt.xlabel("Episode")
+plt.ylabel("Steps")
+plt.title("Steps to Completion over Episodes")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig(f"logs/timestep_curve_{timestamp}.png")
+plt.show()

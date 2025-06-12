@@ -38,6 +38,8 @@ clip_eps = 0.05
 ppo_epochs = 4
 
 def train_ppo(env, policy, optimizer, episode_num, logger=None):
+    reward_list = []
+    times_list = []
     for episode in range(episode_num):
         obs, _ = env.reset()
         log_probs, rewards, entropies, edge_ids = [], [], [], []
@@ -88,7 +90,9 @@ def train_ppo(env, policy, optimizer, episode_num, logger=None):
             logger.info(msg)
         else:
             print(msg)
-    return policy
+        reward_list.append(rewards)
+        times_list.append(env.step_count)
+    return reward_list, times_list
 
 def evaluate_policy(env, policy, episode_num=50, logger=None):
     policy.eval()

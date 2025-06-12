@@ -22,7 +22,7 @@ class StateIOEnv(gym.Env):
         self.num_nodes = num_nodes         # Number of bases on the map
         self.speed = 3
         self.step_count = 0
-        self.max_timestep = 1000
+        self.max_timestep = 400
         
         self.renderflag = renderflag
 
@@ -201,7 +201,7 @@ class StateIOEnv(gym.Env):
                         # Give an reward based on the number of elimination
                         reward += neutral_units * 0.5
                         self.neutral_troop_distribution[dst] = 0
-                        reward += 5  # bonus for capturing a base
+                        reward += 50  # bonus for capturing a base
                     else:
                         # Even not occupying a base we will give rewards also
                         # reward += total_arrival_units * 0.2
@@ -216,12 +216,12 @@ class StateIOEnv(gym.Env):
                 del self.my_troop_transferring[(src, dst)]
                     
         # Panalty for taking times
-        reward -= 0.1
+        reward -= 5
         
         # Check termination (for now: all neutral captured)
         if np.all(self.neutral_troop_distribution == 0):
             done = True
-            reward += 50  # bonus for finishing game
+            reward += 1000  # bonus for finishing game
 
         # All my occupied nodes will produce troops as time increases
         mask = self.neutral_troop_distribution == 0
