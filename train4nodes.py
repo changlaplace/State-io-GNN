@@ -12,7 +12,7 @@ from ppo_train import *
 gamma = 0.99
 clip_eps = 0.05
 ppo_epochs = 4
-train_node_num = 20
+train_node_num = 3
 train_env_num = 1
 episode_num = 100
 
@@ -41,6 +41,7 @@ import matplotlib.pyplot as plt
 np.save(f"logs/reward_curve_{timestamp}.npy", np.array(rewards))
 np.save(f"logs/timestep_curve_{timestamp}.npy", np.array(timesteps))
 
+image_folder = "./images"
 # 绘图
 plt.figure()
 plt.plot(rewards, label='Episode Reward')
@@ -50,8 +51,9 @@ plt.title("Training Reward over Episodes")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig(f"logs/reward_curve_{timestamp}.png")
+plt.savefig(os.path.join(image_folder,f"reward_curve_{timestamp}.png"))
 plt.show()
+plt.close()
 
 plt.figure()
 plt.plot(timesteps, label='Steps per Episode')
@@ -61,5 +63,6 @@ plt.title("Steps to Completion over Episodes")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
-plt.savefig(f"logs/timestep_curve_{timestamp}.png")
+plt.savefig(os.path.join(image_folder,f"timestep_curve_{timestamp}.png"))
 plt.show()
+plt.close()
