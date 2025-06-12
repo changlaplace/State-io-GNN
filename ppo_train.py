@@ -178,17 +178,8 @@ if __name__=="__main__":
     node_a = 2
     node_b = 5
     
-    # print("========== Transfer: a → b ==========")
-    # transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=True)
-    # print("========== Transfer: b → a ==========")
-    # transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=True)
-
-    # print("========== Transfer: a → b ==========")
-    # transfer_experiment(train_node_num=node_a, test_node_num=node_b, use_attention=False)
     print("========== Transfer: b → a ==========")
     transfer_experiment(train_node_num=node_b, test_node_num=node_a, use_attention=False)
-    # print("\n📈 Transfer Results:")
-    # print(f"Train on 30, Test on 5: {reward_30_to_5:.2f}")
-    # print(f"Train on 5, Test on 30: {reward_5_to_30:.2f}")
+   
     
     
